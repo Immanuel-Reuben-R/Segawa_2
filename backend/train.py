@@ -142,7 +142,7 @@ def personality_stage(model, dataset, train_idx, val_loader, use_amp, dev_type):
     """Final stage: fine-tune on personality data mixed with replayed general data."""
     pers_idx = dataset.personality_indices()
     if not pers_idx:
-        print("\nNo personality data found (datasets/Personality/personality.json) - skipping stage 2.")
+        print("\nNo personality data found (datasets/personality.json) - skipping stage 2.")
         return
 
     print(f"\n=== STAGE 2: Personality fine-tuning ({len(pers_idx)} personality pairs, "

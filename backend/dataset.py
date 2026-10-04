@@ -181,7 +181,7 @@ class SegawaDataset(Dataset):
 
         # ---------- 5. Personality (trained LAST; exempt from the generic-answer cap) ----------
         pers_pairs = []
-        pers_path = os.path.join(data_dir, "Personality", "personality.json")
+        pers_path = os.path.join(data_dir, "personality.json")
         if os.path.exists(pers_path):
             print("Loading Personality...")
             pers_pairs = load_personality(pers_path)
