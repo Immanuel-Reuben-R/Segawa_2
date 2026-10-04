@@ -41,7 +41,7 @@ PERSONALITY_REPLAY = 3     # general samples mixed in per personality sample
 
 # ---------------- Paths (same ones the server uses) ----------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "datasets"))
+DATA_DIR = os.path.abspath(os.path.join(BASE_DIR, "datasets"))
 CKPT_DIR = os.path.join(BASE_DIR, "checkpoints")
 RESUME_PATH = os.path.join(CKPT_DIR, "segawa_resume.pt")
 RESUME = True

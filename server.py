@@ -22,10 +22,10 @@ CORS(app)  # Allow frontend to talk to backend
 MAX_LENGTH = 96
 VOCAB_SIZE = 15000
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "datasets"))
+DATA_DIR = os.path.abspath(os.path.join(BASE_DIR, "backend", "datasets"))
 CKPT_NAME = "segawa_final.pth"  # written by train.py after the personality stage
-CHECKPOINT_PATH = os.path.join(BASE_DIR, "checkpoints", CKPT_NAME)
-CONFIG_PATH = os.path.join(BASE_DIR, "checkpoints", "model_config.json")
+CHECKPOINT_PATH = os.path.join(BASE_DIR, "backend", "checkpoints", CKPT_NAME)
+CONFIG_PATH = os.path.join(BASE_DIR, "backend", "checkpoints", "model_config.json")
 FRONTEND_DIR = r'C:\Users\Immanuel\Carly\frontend'
 
 # ---------------- Generation settings (tweak these!) ----------------
