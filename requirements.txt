@@ -1,0 +1,8 @@
+torch
+pandas
+numpy
+scikit-learn
+tqdm
+flask
+flask-cors
+python-dotenv

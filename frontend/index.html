@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Segawa by Segawa</title>
+    <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Soft Grid Background -->
+    <div class="grid-bg"></div>
+
+    <!-- PAGE 1: LOGIN -->
+    <div id="page-login" class="page active">
+        <div class="brutal-container">
+            <div class="brutal-header">
+                <h1>Segawa</h1>
+                <span class="sys-badge">Authentication</span>
+            </div>
+            
+            <div class="brutal-content">
+                <h2 class="massive-text">Welcome<br>back.</h2>
+                <p class="mono-text">A personal intelligence space, crafted for you.</p>
+                
+                <form class="brutal-form" id="login-form" onsubmit="handleLogin(event)">
+                    <div class="input-group">
+                        <label>Email Address</label>
+                        <input type="email" id="email-input" required placeholder="name@example.com">
+                        <span id="email-error" style="color: #ef4444; font-size: 0.8rem; display: none; margin-top: 4px;">Please enter a valid email address.</span>
+                    </div>
+                    <div class="input-group">
+                        <label>Password</label>
+                        <input type="password" required placeholder="Enter your password">
+                    </div>
+                    <button type="submit" class="brutal-button" id="login-btn">
+                        Continue <span class="arrow">→</span>
+                    </button>
+                </form>
+                
+                <!-- Verification Code Modal (Hidden initially) -->
+                <div id="verify-modal" style="display: none; margin-top: 24px; padding: 24px; border-top: 1px solid rgba(17, 24, 39, 0.1);">
+                    <h3 style="font-family: 'Newsreader', serif; margin-bottom: 8px;">Check your email</h3>
+                    <p style="font-size: 0.85rem; color: #6b7280; margin-bottom: 16px;">We've sent a 6-digit code to verify your identity.</p>
+                    <div class="input-group">
+                        <input type="text" id="verify-code-input" placeholder="123456" maxlength="6" style="text-align: center; font-family: 'Space Mono', monospace; font-size: 1.5rem; letter-spacing: 4px;">
+                        <span id="verify-error" style="color: #ef4444; font-size: 0.8rem; display: none; margin-top: 4px;"></span>
+                    </div>
+                    <button type="button" class="brutal-button accent-bg" style="width: 100%; margin-top: 16px; justify-content: center;" onclick="handleVerify()">
+                        Verify Code
+                    </button>
+                </div>
+            </div>
+            
+            <div class="brutal-footer">
+                <span>Local Time // <span id="clock">00:00:00</span></span>
+                <span>Status // Awaiting connection</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- PAGE 2: SETUP -->
+    <div id="page-setup" class="page">
+        <div class="brutal-container">
+            <div class="brutal-header">
+                <h1>Segawa</h1>
+                <span class="sys-badge">Preferences</span>
+            </div>
+            
+            <div class="brutal-content">
+                <h2 class="massive-text">Tailor your<br>experience.</h2>
+                
+                <form class="brutal-form" onsubmit="event.preventDefault(); goToPage('page-chat');">
+                    <div class="input-group">
+                        <label>What should I call you?</label>
+                        <input type="text" id="user-name" required placeholder="Your name">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label>Primary focus for today?</label>
+                        <div class="directive-grid">
+                            <button type="button" class="directive-btn active" onclick="selectDirective(this, 'code')">Software & Logic</button>
+                            <button type="button" class="directive-btn" onclick="selectDirective(this, 'research')">Data & Research</button>
+                            <button type="button" class="directive-btn" onclick="selectDirective(this, 'general')">General Assist</button>
+                        </div>
+                        <input type="hidden" id="directive-value" value="code">
+                    </div>
+
+                    <div class="checkbox-group" style="margin-top: 10px;">
+                        <input type="checkbox" id="data-consent" required>
+                        <label for="data-consent">I consent to Segawa using this session's context to continuously refine and personalize its neural pathways.</label>
+                    </div>
+                    
+                    <button type="submit" class="brutal-button accent-bg" style="margin-top: 20px;">
+                        Begin Session <span class="arrow">→</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- PAGE 3: CHAT INTERFACE (CLAYMORPHISM BENTO) -->
+    <div id="page-chat" class="page">
+        <canvas id="star-canvas"></canvas>
+        
+        <div class="bento-layout">
+            
+            <!-- Bento Box 1: Header -->
+            <div class="bento-box clay-panel bento-header">
+                <h2>Segawa</h2>
+                <div class="header-right">
+                    <span class="status-indicator">● Systems Optimal</span>
+                    <button class="clay-btn" onclick="goToPage('page-login')">Sign out</button>
+                </div>
+            </div>
+
+            <!-- Bento Box 2: System Stats -->
+            <aside class="bento-box clay-panel bento-stats">
+                <div class="sys-status">
+                    <span>Cognitive Load</span>
+                    <div class="clay-bar-bg"><div class="clay-bar-fill" style="width: 72%;"></div></div>
+                </div>
+                <div class="sys-status">
+                    <span>Context Memory</span>
+                    <div class="clay-bar-bg"><div class="clay-bar-fill" style="width: 45%;"></div></div>
+                </div>
+                <div class="sys-status">
+                    <span>Active Session</span>
+                    <p class="mono-text" style="color: #4b5563; font-weight:bold; margin-top:4px;" id="display-name">User</p>
+                </div>
+            </aside>
+            
+            <!-- Bento Box 3: The Chat Window -->
+            <main class="bento-box clay-panel bento-main">
+                <div class="chat-messages" id="chat-messages">
+                    <div class="message ai-message">
+                        <div class="msg-sender">Segawa // 00:00:01</div>
+                        <div class="msg-content clay-bubble-ai">Good morning. The neural network is fully synced. How would you like to explore today?</div>
+                    </div>
+                </div>
+                
+                <div class="chat-input-container">
+                    <div class="clay-input-wrapper">
+                        <span class="prompt-arrow">>&nbsp;</span>
+                        <input type="text" id="user-input" placeholder="Message Segawa..." autocomplete="off" onkeypress="handleKeyPress(event)">
+                        <button onclick="sendMessage()" class="clay-send-btn">Send</button>
+                    </div>
+                </div>
+            </main>
+            
+            <!-- Bento Box 4: Quick Tools -->
+            <div class="bento-box clay-panel bento-tools">
+                <h3 style="font-size: 0.9rem; margin-bottom:12px; color:#6b7280;">Quick Directives</h3>
+                <div class="tool-grid">
+                    <button class="clay-tool-btn">Debug Code</button>
+                    <button class="clay-tool-btn">Analyze Data</button>
+                    <button class="clay-tool-btn">Brainstorm</button>
+                    <button class="clay-tool-btn">Summarize</button>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

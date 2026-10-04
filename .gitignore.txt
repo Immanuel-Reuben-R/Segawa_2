@@ -1,0 +1,16 @@
+# model weights and training state
+checkpoints/
+*.pth
+*.pt
+
+# big datasets (keep the small personality file)
+datasets/*
+!datasets/Personality/
+vocab.json
+
+# secrets and junk
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
