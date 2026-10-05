@@ -2,6 +2,7 @@ import json
 import math
 import os
 import random
+import shutil
 
 import torch
 import torch.nn as nn
@@ -41,10 +42,13 @@ PERSONALITY_REPLAY = 3     # general samples mixed in per personality sample
 
 # ---------------- Paths (same ones the server uses) ----------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.abspath(os.path.join(BASE_DIR, "datasets"))
-CKPT_DIR = os.path.join(BASE_DIR, "checkpoints")
+DATA_DIR = os.environ.get("SEGAWA_DATA_DIR") or os.path.abspath(os.path.join(BASE_DIR, "..", "datasets"))
+# On Colab, point this at Google Drive so checkpoints survive disconnects:
+#   os.environ["SEGAWA_CKPT_DIR"] = "/content/drive/MyDrive/segawa_ckpt"
+CKPT_DIR = os.environ.get("SEGAWA_CKPT_DIR") or os.path.join(BASE_DIR, "checkpoints")
 RESUME_PATH = os.path.join(CKPT_DIR, "segawa_resume.pt")
 RESUME = True
+SAVE_EVERY_STEPS = 1500   # mid-epoch resume save (lose at most this many steps)
 
 # ---------------- Hyperparameters ----------------
 BATCH_SIZE = 64
@@ -55,6 +59,13 @@ MAX_LENGTH = 96           # must match server.py
 VOCAB_SIZE = 15000        # must match server.py
 TRAIN_EVAL_SAMPLES = 20000
 SEED = 42
+
+
+def atomic_save(obj, path):
+    """Write to a temp file, then rename. A disconnect mid-write can't corrupt the old file."""
+    tmp = path + ".tmp"
+    torch.save(obj, tmp)
+    os.replace(tmp, path)
 
 
 def set_seed(seed):
@@ -112,11 +123,12 @@ def evaluate(model, loader, pad_idx, use_amp, dev_type, desc="Eval"):
     return avg_loss, acc, ppl
 
 
-def run_epoch(model, loader, optimizer, scheduler, scaler, criterion, use_amp, dev_type, desc):
+def run_epoch(model, loader, optimizer, scheduler, scaler, criterion, use_amp, dev_type, desc,
+              step_callback=None):
     model.train()
     total = 0.0
     loop = tqdm(loader, leave=False)
-    for inputs, targets in loop:
+    for step, (inputs, targets) in enumerate(loop, 1):
         inputs, targets = inputs.to(device), targets.to(device)
 
         optimizer.zero_grad(set_to_none=True)
@@ -135,6 +147,8 @@ def run_epoch(model, loader, optimizer, scheduler, scaler, criterion, use_amp, d
         total += loss.item()
         loop.set_description(desc)
         loop.set_postfix(loss=f"{loss.item():.3f}", lr=f"{scheduler.get_last_lr()[0]:.2e}")
+        if step_callback is not None:
+            step_callback(step)
     return total / max(1, len(loader))
 
 
@@ -142,7 +156,7 @@ def personality_stage(model, dataset, train_idx, val_loader, use_amp, dev_type):
     """Final stage: fine-tune on personality data mixed with replayed general data."""
     pers_idx = dataset.personality_indices()
     if not pers_idx:
-        print("\nNo personality data found (datasets/personality.json) - skipping stage 2.")
+        print("\nNo personality data found (datasets/Personality/personality.json) - skipping stage 2.")
         return
 
     print(f"\n=== STAGE 2: Personality fine-tuning ({len(pers_idx)} personality pairs, "
@@ -172,7 +186,7 @@ def personality_stage(model, dataset, train_idx, val_loader, use_amp, dev_type):
             print(f"  Epoch {epoch + 1}: Personality Acc {p_acc:.1f}% PPL {p_ppl:.2f} | "
                   f"General VAL Acc {v_acc:.2f}% PPL {v_ppl:.2f}")
 
-    torch.save(model.state_dict(), os.path.join(CKPT_DIR, "segawa_final.pth"))
+    atomic_save(model.state_dict(), os.path.join(CKPT_DIR, "segawa_final.pth"))
     print("Saved checkpoints/segawa_final.pth  <- the server uses this one")
 
 
@@ -182,7 +196,16 @@ def train():
 
     # 1. Data
     print(f"Data dir: {DATA_DIR}")
+    os.makedirs(CKPT_DIR, exist_ok=True)
+    vocab_backup = os.path.join(CKPT_DIR, "vocab.json")
+    vocab_live = os.path.join(DATA_DIR, "vocab.json")
+    if os.path.exists(vocab_backup) and not os.path.exists(vocab_live):
+        shutil.copy(vocab_backup, vocab_live)
+        print("Restored vocab.json from checkpoint folder.")
     dataset = SegawaDataset(DATA_DIR, max_length=MAX_LENGTH, vocab_size=VOCAB_SIZE, load_all=True)
+
+    if os.path.exists(vocab_live):
+        shutil.copy(vocab_live, vocab_backup)  # keep vocab next to the weights
 
     train_idx, val_idx = dataset.split_by_conversation(val_frac=0.05, seed=SEED)
     train_ds, val_ds = Subset(dataset, train_idx), Subset(dataset, val_idx)
@@ -220,6 +243,7 @@ def train():
     criterion = nn.CrossEntropyLoss(ignore_index=dataset.PAD_IDX)
 
     best_val, bad_epochs, start_epoch, stage1_done = float("inf"), 0, 0, False
+    start_step = 0
 
     # 4. Resume
     if RESUME and os.path.exists(RESUME_PATH):
@@ -230,14 +254,16 @@ def train():
             scheduler.load_state_dict(ck["scheduler"])
             scaler.load_state_dict(ck["scaler"])
             best_val, bad_epochs, start_epoch = ck["best_val"], ck["bad_epochs"], ck["epoch"]
+            start_step = ck.get("step_in_epoch", 0)
             stage1_done = ck.get("stage1_done", False)
-            print(f"Resumed from epoch {start_epoch}" + (" (stage 1 already finished)" if stage1_done else ""))
+            print(f"Resumed from epoch {start_epoch}" + (f", step {start_step}" if start_step else "") + (" (stage 1 already finished)" if stage1_done else ""))
         else:
             print("Resume file is from a different MODE/architecture - starting fresh.")
 
-    def save_resume(epoch, done):
-        torch.save({
+    def save_resume(epoch, done, step=0):
+        atomic_save({
             "mode": MODE, "arch": arch, "epoch": epoch, "stage1_done": done,
+            "step_in_epoch": step,
             "model": model.state_dict(), "optimizer": optimizer.state_dict(),
             "scheduler": scheduler.state_dict(), "scaler": scaler.state_dict(),
             "best_val": best_val, "bad_epochs": bad_epochs,
@@ -251,8 +277,22 @@ def train():
               f"({'on TRAIN' if MODE == 'memorize' else 'reported only'})\n")
 
         for epoch in range(start_epoch, epochs):
-            run_epoch(model, train_loader, optimizer, scheduler, scaler, criterion,
-                      use_amp, dev_type, f"Epoch [{epoch + 1}/{epochs}] Train")
+            # Seeded shuffle per epoch, so a mid-epoch resume continues exactly where it stopped
+            g = torch.Generator()
+            g.manual_seed(SEED + epoch)
+            perm = torch.randperm(len(train_idx), generator=g).tolist()
+            skip = start_step if epoch == start_epoch else 0
+            order = [train_idx[i] for i in perm][skip * BATCH_SIZE:]
+            epoch_loader = DataLoader(Subset(dataset, order), batch_size=BATCH_SIZE,
+                                      shuffle=False, drop_last=True)
+
+            def periodic_save(n, epoch=epoch, skip=skip):
+                if n % SAVE_EVERY_STEPS == 0:
+                    save_resume(epoch, False, skip + n)
+
+            run_epoch(model, epoch_loader, optimizer, scheduler, scaler, criterion,
+                      use_amp, dev_type, f"Epoch [{epoch + 1}/{epochs}] Train",
+                      step_callback=periodic_save)
             epoch_done = epoch + 1
 
             tr_loss, tr_acc, tr_ppl = evaluate(model, train_eval_loader, dataset.PAD_IDX,
@@ -264,10 +304,10 @@ def train():
             print(f"  TRAIN (eval mode): Loss {tr_loss:.4f} | Acc {tr_acc:.2f}% | PPL {tr_ppl:.2f}")
             print(f"  VAL   (unseen)   : Loss {val_loss:.4f} | Acc {val_acc:.2f}% | PPL {val_ppl:.2f}")
 
-            torch.save(model.state_dict(), os.path.join(CKPT_DIR, "segawa_last.pth"))
+            atomic_save(model.state_dict(), os.path.join(CKPT_DIR, "segawa_last.pth"))
             if val_loss < best_val - 1e-4:
                 best_val, bad_epochs = val_loss, 0
-                torch.save(model.state_dict(), os.path.join(CKPT_DIR, "segawa_best.pth"))
+                atomic_save(model.state_dict(), os.path.join(CKPT_DIR, "segawa_best.pth"))
                 print("  New best-validation model saved (segawa_best.pth)")
             else:
                 bad_epochs += 1
