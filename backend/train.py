@@ -42,7 +42,7 @@ PERSONALITY_REPLAY = 3     # general samples mixed in per personality sample
 
 # ---------------- Paths (same ones the server uses) ----------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.environ.get("SEGAWA_DATA_DIR") or os.path.abspath(os.path.join(BASE_DIR, "..", "datasets"))
+DATA_DIR = None  # set below by find_data_dir()
 # On Colab, point this at Google Drive so checkpoints survive disconnects:
 #   os.environ["SEGAWA_CKPT_DIR"] = "/content/drive/MyDrive/segawa_ckpt"
 CKPT_DIR = os.environ.get("SEGAWA_CKPT_DIR") or os.path.join(BASE_DIR, "checkpoints")
@@ -61,11 +61,25 @@ TRAIN_EVAL_SAMPLES = 20000
 SEED = 42
 
 
+def find_data_dir():
+    """Datasets folder: $SEGAWA_DATA_DIR, else ./datasets next to this file, else ../datasets."""
+    env = os.environ.get("SEGAWA_DATA_DIR")
+    if env:
+        return env
+    local = os.path.join(BASE_DIR, "datasets")
+    if os.path.isdir(local):
+        return local
+    return os.path.abspath(os.path.join(BASE_DIR, "..", "datasets"))
+
+
 def atomic_save(obj, path):
     """Write to a temp file, then rename. A disconnect mid-write can't corrupt the old file."""
     tmp = path + ".tmp"
     torch.save(obj, tmp)
     os.replace(tmp, path)
+
+
+DATA_DIR = find_data_dir()
 
 
 def set_seed(seed):
@@ -203,6 +217,16 @@ def train():
         shutil.copy(vocab_backup, vocab_live)
         print("Restored vocab.json from checkpoint folder.")
     dataset = SegawaDataset(DATA_DIR, max_length=MAX_LENGTH, vocab_size=VOCAB_SIZE, load_all=True)
+
+    if len(dataset) == 0:
+        found = os.listdir(DATA_DIR) if os.path.isdir(DATA_DIR) else "FOLDER DOES NOT EXIST"
+        raise SystemExit(
+            f"\nNo training data found in: {DATA_DIR}\n"
+            f"Contents: {found}\n"
+            "Fix: put your datasets folder there (movie_lines.txt, movie_conversations.txt, "
+            "DailyDialogue/, Dolly/, PersonaChat/, Personality/personality.json), "
+            "or set os.environ['SEGAWA_DATA_DIR'] to the right folder before running."
+        )
 
     if os.path.exists(vocab_live):
         shutil.copy(vocab_live, vocab_backup)  # keep vocab next to the weights
