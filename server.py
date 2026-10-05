@@ -22,10 +22,19 @@ CORS(app)  # Allow frontend to talk to backend
 MAX_LENGTH = 96
 VOCAB_SIZE = 15000
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.abspath(os.path.join(BASE_DIR, "backend", "datasets"))
+def find_data_dir():
+    """Datasets folder: $SEGAWA_DATA_DIR, else ./datasets next to this file, else ../datasets."""
+    env = os.environ.get("SEGAWA_DATA_DIR")
+    if env:
+        return env
+    local = os.path.join(BASE_DIR, "datasets")
+    if os.path.isdir(local):
+        return local
+    return os.path.abspath(os.path.join(BASE_DIR, "..", "datasets"))
+DATA_DIR = find_data_dir()
 CKPT_NAME = "segawa_final.pth"  # written by train.py after the personality stage
-CHECKPOINT_PATH = os.path.join(BASE_DIR, "backend", "checkpoints", CKPT_NAME)
-CONFIG_PATH = os.path.join(BASE_DIR, "backend", "checkpoints", "model_config.json")
+CHECKPOINT_PATH = os.path.join(BASE_DIR, "checkpoints", CKPT_NAME)
+CONFIG_PATH = os.path.join(BASE_DIR, "checkpoints", "model_config.json")
 FRONTEND_DIR = r'C:\Users\Immanuel\Carly\frontend'
 
 # ---------------- Generation settings (tweak these!) ----------------
